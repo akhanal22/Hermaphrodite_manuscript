@@ -1,0 +1,38 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+#This is the python code for generating depth table.
+# Load the table
+df = pd.read_csv("selected_columns.tsv", sep="\t")
+
+# Ensure Position is sorted
+df = df.sort_values(by="Position")
+
+# Convert Position to Mb (optional)
+df['Position'] = df['Position'] / 1e6
+
+# Apply rolling average (smoothing) over 100 data points (adjust as needed)
+window_size = 10000
+df['Female_avg_smooth'] = df['Female_avg'].rolling(window=window_size, center=True, min_periods=1).mean()
+df['Male_avg_smooth'] = df['Male_avg'].rolling(window=window_size, center=True, min_periods=1).mean()
+
+# Plot
+plt.figure(figsize=(12, 6))
+
+plt.plot(df['Position'], df['Female_avg_smooth'], color='orange', label='Female', linewidth=2)
+plt.plot(df['Position'], df['Male_avg_smooth'], color='skyblue', label='Male', linewidth=2)
+
+# Labels and styling
+plt.xlabel("S. nigra Chromosome 7 (Mb)")
+plt.ylabel("Read Counts (Smoothed)")
+plt.title("Smoothed Coverage along Chr7 (10k-point rolling avg)")
+plt.legend()
+plt.tight_layout()
+
+# Optional: Scientific notation on Y-axis
+plt.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+# Save and show
+plt.savefig("chr07_smoothed_lineplot_10krollingmean.png", dpi=300)
+plt.show()
+
