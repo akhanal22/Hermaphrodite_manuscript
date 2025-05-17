@@ -1,7 +1,9 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-#This is the python code for generating depth table.
+#This is the python code for generating depth table. The selected_columns.tsv will have three columns: first for Position, second is Female_avg and third is Male_avg. The position is for all the position of chr7. Also, I only selected site that has maximum of 25 uncalled SNPs across all individual. For eg: in 47 individual if atleast 25 individual had uncalled snps for that position , that site would be discarded. 
+else "NA" value would be assigned if less than 25 uncalled snp are present.
+
 # Load the table
 df = pd.read_csv("selected_columns.tsv", sep="\t")
 
