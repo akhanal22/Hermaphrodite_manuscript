@@ -1,0 +1,132 @@
+This is the code i used to generate manhattan plot after i remapped the dickens population againts salix nigra reference genome. This time i didnot use the depth filter because a lot of them had low depth around 3-4 read counts which didnot resulted in any significant snps.
+
+
+# Load required libraries
+suppressMessages({
+  library(tidyverse)
+  library(cowplot)
+})
+
+library(RColorBrewer)
+theme_set(theme_cowplot())
+theme_update(plot.title = element_text(hjust = 0.5))
+
+# Set working directory
+setwd("C:/Users/khana/OneDrive - Texas Tech University/Documents/Texas_Tech/research/third_chapter/sdr_remapping/dickens_remapped/gwas_for_snps_with_nodepth_filter")
+
+# Load EMMAX TPED results
+emmax <- read_delim("snigra.emmax.ps", delim = "\t", col_names = FALSE)
+head(emmax)
+tped <- read_delim("snigra.tped", delim = " ", col_names =F, col_types = cols(.default = "c"))
+
+
+
+#Because the SNPs don't have names in the VCF, the emmax output doesn't actually have any useful identifiers for which loci are which, but thankfully they're still in the same order as in the original genotype matrix. So we can just bind the chromosome name and position from the genotype matrix to the emmax output.
+
+emmax_annot <- select(tped, X1, X4) %>% 
+  bind_cols(., emmax)
+colnames(emmax_annot) <- c("chr", "pos", "SNP", "beta", "SE_beta", "P_value")
+head(emmax_annot)
+
+# Adjust p-values (FDR), calculate -log10(P), convert chr to "SC" where needed and save the result for chromosome 7 in a csv file
+emmax_annot <- emmax_annot %>%
+  mutate(
+    P_adj = p.adjust(P_value, method = "fdr"),
+    log10P = -log10(P_value),
+    chr = as.character(chr),
+    chr = if_else(str_detect(chr, "HiC_scaffold"), "SC", chr),
+    chr = factor(chr, levels = c(as.character(1:19), "SC")),
+    pos = as.numeric(pos)
+  )
+
+chr7 <- subset(emmax_annot, chr == "7")
+write.csv(chr7, "Chr7_bonferroni.csv")
+
+#Define fdr threshold
+
+fdr_threshold <- max(emmax_annot$P_value[emmax_annot$P_adj < 0.05], na.rm = TRUE)
+log10_fdr_threshold <- -log10(fdr_threshold)
+
+
+#Create a new column for point coloring
+emmax_annot <- emmax_annot %>%
+  mutate(sig = ifelse(P_adj < 0.05, "Significant", "Not Significant"))
+
+#New dataframe to include increasing BP along x axis
+
+emmax_annot <- emmax_annot %>%
+  # Change the names of all of the scaffold chromosomes to "SC"
+  mutate(., chr = replace(chr, str_detect(chr, "HiC_scaffold"), "SC")) %>%
+  
+  # Refactor the names of chromosomes so they're in order
+  mutate(., chr = factor(chr, levels = c("1", "2", "3", "4", "5", "6",
+                                         "7", "8", "9", "10", "11", "12", 
+                                         "13", "14", "15", "16", "17", "18", 
+                                         "19", "SC")))
+to_plot <- emmax_annot %>% 
+  # Compute chromosome size
+  group_by(chr) %>% 
+  summarise(chr_len=max(pos)) %>% 
+  
+  # Calculate cumulative position of each chromosome
+  mutate(tot=cumsum(chr_len)-chr_len) %>%
+  select(-chr_len) %>%
+  
+  # Add this info to the initial dataset
+  left_join(emmax_annot, ., by=c("chr"="chr")) %>%
+  
+  # Add a cumulative position of each SNP
+  arrange(chr, pos) %>%
+  mutate( BPcum=pos+tot)
+
+#Create a convenience data frame that contains the center of each of the chromosomes for plotting the axis labels. Because we've broken the scaffold names, just make that value the largest value of the cumulative BP variable
+axisdf <- to_plot %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
+axisdf <- mutate(axisdf, center = replace(center, chr == "SC", max(to_plot$BPcum, na.rm = T)))
+
+
+# Create chromosome color palette
+chrom_colors <- brewer.pal(n = 8, name = "Set2")
+chrom_colors <- rep(chrom_colors, length.out = length(unique(to_plot$chr)))
+
+# Update to_plot with sig column (join from emmax_annot)
+to_plot <- to_plot %>%
+  mutate(sig = ifelse(P_adj < 0.05, "Significant", "Not Significant"))
+
+ggplot(to_plot, aes(x = BPcum, y = log10P)) +
+  # Non-significant points colored by chromosome
+  geom_point(
+    data = subset(to_plot, sig == "Not Significant"),
+    aes(color = factor(chr)),
+    alpha = 0.8, size = 1.3
+  ) +
+  # Significant SNPs in red
+  geom_point(
+    data = subset(to_plot, sig == "Significant"),
+    color = "red",
+    alpha = 0.9, size = 1.5
+  ) +
+  # FDR threshold line
+  geom_hline(yintercept = log10_fdr_threshold, color = "red4", linetype = "dashed") +
+  scale_color_manual(values = chrom_colors) +
+  scale_x_continuous(label = axisdf$chr, breaks = axisdf$center) +
+  scale_y_continuous(
+    breaks = c(0, 2.5, 5, 7.5, 10, 12.5),
+    labels = c(0, 2.5, 5, 7.5, 10, 12.5)
+  ) +
+  xlab("Chromosome") + 
+  ylab(expression(paste("-log"[10], " P-value"))) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.border = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    axis.title.x = element_text(size = 14), 
+    axis.title.y = element_text(size = 14), 
+    axis.text.y = element_text(size = 8),
+    axis.text.x = element_text(size = 8)
+  ) -> gwas_plot
+
+# Display plot
+options(repr.plot.width = 6.65354, repr.plot.height = 4.1584625, repr.plot.res = 300)
+gwas_plot
