@@ -1,0 +1,71 @@
+# Load required libraries
+library(tidyverse)
+library(stringr)
+
+# Set working directory and load data I manually made the csv file based on 012 ind, text and position file from vcftools
+setwd("C:/Users/khana/OneDrive - Texas Tech University/Documents/Texas_Tech/research/third_chapter/sdr_remapping/dickens_remapped/gwas_for_snps_with_nodepth_filter/snp_only_all_otherfilter")
+df <- read_csv("allelic_state_v2.csv")
+
+# Convert to long format
+df_long <- df %>%
+  pivot_longer(-Ind, names_to = "SNP", values_to = "Allelic_State")
+
+# Remove SNPs with >20% missing data
+snp_missing <- df_long %>%
+  group_by(SNP) %>%
+  summarise(prop_missing = mean(Allelic_State == -1, na.rm = TRUE))
+
+snps_to_keep <- snp_missing %>%
+  filter(prop_missing <= 0.2) %>%
+  pull(SNP)
+
+df_long <- df_long %>%
+  filter(SNP %in% snps_to_keep)
+
+# Remove individuals with >70% missing data
+ind_missing <- df_long %>%
+  group_by(Ind) %>%
+  summarise(prop_missing = mean(Allelic_State == -1, na.rm = TRUE))
+
+inds_to_keep <- ind_missing %>%
+  filter(prop_missing <= 0.7) %>%
+  pull(Ind)
+
+df_long <- df_long %>%
+  filter(Ind %in% inds_to_keep)
+
+# Convert Allelic_State to character then factor for proper coloring
+df_long <- df_long %>%
+  mutate(Allelic_State = as.character(Allelic_State)) %>%
+  filter(Allelic_State %in% c("-1", "0", "1", "2")) %>%
+  mutate(Allelic_State = factor(Allelic_State, levels = c("-1", "0", "1", "2")))
+
+# Order individuals: M → F → other
+inds_M <- df_long %>% distinct(Ind) %>% filter(str_ends(Ind, "M")) %>% pull(Ind)
+inds_F <- df_long %>% distinct(Ind) %>% filter(str_ends(Ind, "F")) %>% pull(Ind)
+other_inds <- df_long %>% distinct(Ind) %>%
+  filter(!(Ind %in% c(inds_M, inds_F))) %>% pull(Ind)
+
+final_order <- c(sort(inds_M), sort(inds_F), sort(other_inds))
+df_long$Ind <- factor(df_long$Ind, levels = final_order)
+
+# Create tile plot
+ggplot(df_long, aes(x = SNP, y = Ind, fill = Allelic_State)) +
+  geom_tile(color = NA) +  # No border to avoid gray grid
+  scale_fill_manual(values = c(
+    "-1" = "white",      # missing
+    "0" = "skyblue",     # homozygous reference
+    "1" = "darkgreen",   # heterozygous
+    "2" = "peachpuff"    # homozygous alternate
+  )) +
+  theme_minimal(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 90, size = 5, vjust = 1, hjust = 1),
+    axis.text.y = element_text(size = 6),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "SNP Position",
+    y = "Individual",
+    fill = "Allelic State"
+  )
