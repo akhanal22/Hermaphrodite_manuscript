@@ -1,0 +1,58 @@
+runDGE <- function(counttable, group1, group2, fullResults=FALSE) {
+  require("DESeq2")
+  require("ggplot2")
+  
+  #--------- DESeq2
+  countmat <- as.matrix(counttable)
+  row.names(countmat) <- row.names(counttable)
+  
+  colData <- data.frame(condition = c(rep("C", group1), rep("D", group2)))
+  
+  suppressMessages({
+    cds <- DESeqDataSetFromMatrix(countData = countmat, colData = colData, design = ~condition)
+    cds <- estimateSizeFactors(cds)
+    cds <- estimateDispersions(cds)
+    cds <- DESeq(cds)
+    res <- results(cds)
+  })
+  
+  # Convert results to dataframe
+  res_df <- as.data.frame(res)
+  res_df$gene <- rownames(res_df)
+  
+  # Classify significance for volcano
+  res_df$threshold <- "NotSig"
+  res_df$threshold[
+    !is.na(res_df$padj) & res_df$padj < 0.05 & res_df$log2FoldChange > 2
+  ] <- "Up"
+  res_df$threshold[
+    !is.na(res_df$padj) & res_df$padj < 0.05 & res_df$log2FoldChange < -2
+  ] <- "Down"
+  
+  # Volcano Plot
+  p <- ggplot(res_df, aes(x = log2FoldChange, y = -log10(pvalue))) +
+    geom_point(aes(color = threshold), size = 1) +
+    scale_color_manual(values = c("Down" = "blue", "Up" = "red", "NotSig" = "grey")) +
+    geom_hline(yintercept = -log10(0.05), linetype = "dotted") +
+    labs(
+      x = "Log2 Fold Change",
+      y = "-Log10 p-value",
+      title = "Volcano Plot: DESeq2 Results"
+    ) +
+    theme_bw()
+  
+  print(p)
+  
+  #--------- Output
+  outData <- res_df[, c("gene", "log2FoldChange", "pvalue", "padj")]
+  colnames(outData) <- c("gene", "DESeq2_logFC", "DESeq2_pvalue", "DESeq2_FDR")
+  
+  if (fullResults) {
+    return(outData)
+  } else {
+    return(outData[
+      !is.na(outData$DESeq2_FDR) &
+        outData$DESeq2_FDR < 0.05 &
+        abs(outData$DESeq2_logFC) > 2, ])
+  }
+}
