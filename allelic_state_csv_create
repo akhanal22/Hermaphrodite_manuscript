@@ -1,0 +1,20 @@
+# Read 012 matrix and remove first column (which is just row index)
+mat <- read.table("chr7.012", header = FALSE)
+mat <- mat[, -1]
+
+# Read individual names
+ind_names <- read.table("chr7.ind", header = FALSE)$V1
+
+# Read SNP positions (use only second column)
+snp_pos <- read.table("chr7.pos", header = FALSE)$V2
+
+# Set row names and column names
+rownames(mat) <- ind_names
+colnames(mat) <- snp_pos
+
+# Optionally convert to data frame and add individual name as a column
+df <- as.data.frame(mat)
+df <- tibble::rownames_to_column(df, var = "Ind")
+
+# View result
+head(df)
