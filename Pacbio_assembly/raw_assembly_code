@@ -1,1 +1,12 @@
+#!/bin/bash
+#SBATCH -J pacbio
+#SBATCH -o %x.o%j
+#SBATCH -e %x.e%j
+#SBATCH -p nocona
+#SBATCH -N 1
+#SBATCH -n 128
+
+
+
+hifiasm/hifiasm -o raw_assembly/HG002.asm --h1 ../hic_Data/HiC_527M.R1.fastq --h2 ../hic_Data/HiC_527M.R2.fastq pacbio_sn527/hifi.fastq.gz -t 128
 
