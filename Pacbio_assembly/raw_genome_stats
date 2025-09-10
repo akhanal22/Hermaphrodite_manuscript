@@ -1,0 +1,8 @@
+Stats of raw assembly
+file     format  type  num_seqs      sum_len  min_len    avg_len     max_len
+hap1.fa  FASTA   DNA      2,007  434,515,844   11,299  216,500.2  37,035,518
+hap2.fa  FASTA   DNA        404  378,965,952   11,299  938,034.5  37,453,707
+
+file     format  type  num_seqs      sum_len  min_len    avg_len     max_len        Q1        Q2      Q3  sum_gap         N50  N50_num  Q20(%)  Q30(%)  AvgQual  GC(%)  sum_n
+hap1.fa  FASTA   DNA      2,007  434,515,844   11,299  216,500.2  37,035,518  30,450.5    36,919  46,368        0  15,550,416       11       0       0        0   34.9      0
+hap2.fa  FASTA   DNA        404  378,965,952   11,299  938,034.5  37,453,707    32,928  43,021.5  65,648        0  17,622,912        9       0       0        0  34.94      0
