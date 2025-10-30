@@ -1,0 +1,100 @@
+Synteny based on gff file from 4 to 10mb of hap 1 and hap2 chr07
+
+# Load required libraries
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(tidyr)
+
+# --- Read and clean species 1 ---
+file1 <- file.choose()
+data1 <- read_tsv(file1, col_names = FALSE)
+data1 <- data1[data1$X3 == "gene",]
+data_clean <- data1 %>%
+  separate(col = 9, into = c("ID", "Name", "coverage", "sequence_ID",
+                             "valid_ORFs", "extra_copy_number", "copy_num_ID"), sep = ";") %>%
+  select(-c(2, 3, 6:8)) %>%
+  select(c(1, 2, 3, Name))
+species1 <- data_clean
+
+# --- Read and clean species 2 ---
+file2 <- file.choose()
+data2 <- read_tsv(file2, col_names = FALSE)
+data2 <- data2[data2$X3 == "gene",]
+data_clean2 <- data2 %>%
+  separate(col = 9, into = c("ID", "Name", "coverage", "sequence_ID",
+                             "valid_ORFs", "extra_copy_number", "copy_num_ID"), sep = ";") %>%
+  select(-c(2, 3, 6:8)) %>%
+  select(c(1, 2, 3, Name))
+species2 <- data_clean2
+
+# --- Define target region ---
+target_contig <- "Chr07"
+region_start <- 4e6
+region_end <- 10e6
+
+# --- Process both species ---
+species1_sel <- species1 %>%
+  mutate(pos = (X4 + X5) / 2) %>%
+  select(-c(X4, X5)) %>%
+  filter(X1 == target_contig, pos >= region_start, pos <= region_end)
+
+species2_sel <- species2 %>%
+  mutate(pos = (X4 + X5) / 2) %>%
+  select(-c(X4, X5)) %>%
+  filter(X1 == target_contig, pos >= region_start, pos <= region_end)
+
+# --- Join on gene name ---
+matched_data <- inner_join(species1_sel, species2_sel, by = "Name") %>%
+  select(pos.x, pos.y)
+
+cat("Matched genes:", nrow(matched_data), "\n")
+
+# --- Scale constants and vertical positions ---
+chr1 <- region_end - region_start
+chr2 <- region_end - region_start
+
+y_top <- 500
+y_bottom <- 350
+
+# --- Plot ---
+ggplot(matched_data, aes(x = pos.x, y = pos.y)) +
+  # Synteny links
+  geom_segment(aes(
+    x = (pos.x - region_start) / chr1 * 16000 - 8000,
+    xend = (pos.y - region_start) / chr2 * 16000 - 8000,
+    y = y_top, yend = y_bottom
+  ),
+  color = "orange", linewidth = 0.7) +
+  
+  # Chromosome bars
+  geom_segment(aes(x = -8000, y = y_top, xend = 8000, yend = y_top),
+               color = "black", linewidth = 2) +
+  geom_segment(aes(x = -8000, y = y_bottom, xend = 8000, yend = y_bottom),
+               color = "black", linewidth = 2) +
+  
+  # Labels
+  annotate("text", x = -8000, y = y_top + 30, label = "4 Mb", hjust = 1, size = 3) +
+  annotate("text", x = 8000, y = y_top + 30, label = "10 Mb", hjust = 0, size = 3) +
+  annotate("text", x = -8000, y = y_bottom - 30, label = "4 Mb", hjust = 1, size = 3) +
+  annotate("text", x = 8000, y = y_bottom - 30, label = "10 Mb", hjust = 0, size = 3) +
+  
+  # Title
+  labs(title = paste0(target_contig, ": 4–10 Mb")) +
+  
+  # Theme
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    panel.border = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank(),
+    axis.ticks = element_blank()
+  ) 
+# --- Save plot ---
+ggsave(paste0(target_contig, "_4-10Mb_synteny.png"),
+       width = 6, height = 1, dpi = 300)
+
