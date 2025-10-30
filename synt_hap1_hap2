@@ -67,17 +67,18 @@ ggplot(matched_data, aes(x = pos.x, y = pos.y)) +
   ),
   color = "orange", linewidth = 0.7) +
   
+  
   # Chromosome bars
-  geom_segment(aes(x = -8000, y = y_top, xend = 8000, yend = y_top),
+  geom_segment(aes(x = -8000 - 500, y = y_top, xend = 8000+500, yend = y_top),
                color = "black", linewidth = 2) +
-  geom_segment(aes(x = -8000, y = y_bottom, xend = 8000, yend = y_bottom),
+  geom_segment(aes(x = -8000 - 500, y = y_bottom, xend = 8000+500, yend = y_bottom),
                color = "black", linewidth = 2) +
   
   # Labels
-  annotate("text", x = -8000, y = y_top + 30, label = "4 Mb", hjust = 1, size = 3) +
-  annotate("text", x = 8000, y = y_top + 30, label = "10 Mb", hjust = 0, size = 3) +
-  annotate("text", x = -8000, y = y_bottom - 30, label = "4 Mb", hjust = 1, size = 3) +
-  annotate("text", x = 8000, y = y_bottom - 30, label = "10 Mb", hjust = 0, size = 3) +
+  annotate("text", x = -8000 + 800, y = y_top + 30, label = "4 Mb", hjust = 1, size = 3) +
+  annotate("text", x = 8000 + 800, y = y_top + 30, label = "10 Mb", hjust = 0, size = 3) +
+  annotate("text", x = -8000 + 800, y = y_bottom - 30, label = "4 Mb", hjust = 1, size = 3) +
+  annotate("text", x = 8000 + 800, y = y_bottom - 30, label = "10 Mb", hjust = 0, size = 3) +
   
   # Title
   labs(title = paste0(target_contig, ": 4–10 Mb")) +
@@ -97,4 +98,3 @@ ggplot(matched_data, aes(x = pos.x, y = pos.y)) +
 # --- Save plot ---
 ggsave(paste0(target_contig, "_4-10Mb_synteny.png"),
        width = 6, height = 1, dpi = 300)
-
