@@ -1,0 +1,242 @@
+1. Build gene-level 1:1 orthologs using Sapur IDs
+
+Because both hap1 and hap2 annotation are based on S. purpurea, the Sapur gene ID is your natural “bridge”.
+
+You want a table like:
+
+sapur_gene_id          hap1_transcript_id      hap2_transcript_id
+Sapur.007G032500       Sapur.007G032500.3.v5.1 Sapur.007G032500.5.v5.1
+Sapur.007G065700       ...
+...
+
+
+and only for Chr07.
+
+(A) Extract gene + transcript info for Chr07 from each haplotype GFF
+
+Make a small tabular file from each GFF. Example (bash-ish):
+
+# Hap1 – Chr07 only, mRNA features
+awk '$1=="Chr07" && $3=="mRNA"' hap1.gff3 \
+  | awk '{
+      split($9, a, ";");
+      id=""; parent="";
+      for (i in a) {
+        if (a[i] ~ /^ID=/) { sub("ID=", "", a[i]); id=a[i]; }
+        if (a[i] ~ /^Parent=/) { sub("Parent=", "", a[i]); parent=a[i]; }
+      }
+      print id, parent, $1, $4, $5;
+    }' OFS='\t' > hap1_chr7_mrna.tsv
+
+# Hap2 – same idea
+awk '$1=="Chr07" && $3=="mRNA"' hap2.gff3 \
+  | awk '... same ...' > hap2_chr7_mrna.tsv
+
+
+Now you have, for each hap:
+
+transcript_id   gene_id      chr   start   end
+Sapur.007G032500.1.v5.1  Sapur.007G032500  Chr07  ... ...
+...
+
+(B) Pick a single isoform per gene per haplotype
+
+You can do this in Python or R by, e.g., picking the longest CDS or just the lowest isoform number (.1), depending how careful you want to be.
+
+Simple approach: pick the first transcript per gene:
+
+import pandas as pd
+
+hap1 = pd.read_csv("hap1_chr7_mrna.tsv", sep="\t",
+                   names=["tx_id", "gene_id", "chr", "start", "end"])
+hap2 = pd.read_csv("hap2_chr7_mrna.tsv", sep="\t",
+                   names=["tx_id", "gene_id", "chr", "start", "end"])
+
+# Choose one transcript per gene (e.g. first; you can change to longest later)
+hap1_one = hap1.sort_values("tx_id").groupby("gene_id", as_index=False).first()
+hap2_one = hap2.sort_values("tx_id").groupby("gene_id", as_index=False).first()
+
+# Keep only genes present in BOTH haplotypes
+pairs = hap1_one.merge(hap2_one, on="gene_id", suffixes=("_hap1", "_hap2"))
+
+pairs.to_csv("chr7_gene_pairs.tsv", sep="\t", index=False)
+
+
+Now chr7_gene_pairs.tsv is effectively your 1:1 orthologue list for Chr07.
+
+You actually don’t need OrthoFinder at this point, because the orthology comes from the fact that both haplotypes share the same Sapur gene ID.
+
+2. Extract CDS for those gene pairs (Hap1 and Hap2)
+
+If you haven’t already:
+
+gffread hap1.gff3 -g hap1_genome.fasta -x hap1_cds.fa
+gffread hap2.gff3 -g hap2_genome.fasta -x hap2_cds.fa
+
+
+Now subset CDS to just the transcripts in chr7_gene_pairs.tsv.
+
+Make a list of hap1 transcript IDs and hap2 transcript IDs:
+
+pairs = pd.read_csv("chr7_gene_pairs.tsv", sep="\t")
+pairs["tx_id_hap1"].to_csv("hap1_chr7_tx_ids.txt", index=False, header=False)
+pairs["tx_id_hap2"].to_csv("hap2_chr7_tx_ids.txt", index=False, header=False)
+
+
+Then:
+
+seqkit grep -f hap1_chr7_tx_ids.txt hap1_cds.fa > hap1_chr7_pairs_cds.fa
+seqkit grep -f hap2_chr7_tx_ids.txt hap2_cds.fa > hap2_chr7_pairs_cds.fa
+
+
+(If you don’t have seqkit, we can do a little Python script instead.)
+
+3. For each gene pair, make codon alignments and run Ka/Ks Calculator
+
+Loop over each row in chr7_gene_pairs.tsv, extract its CDS from those two FASTAs, build codon alignments, and feed to Ka/Ks Calculator.
+
+Sketch of the workflow (you can turn this into a small bash/Python pipeline):
+
+mkdir kaks_chr7
+cd kaks_chr7
+
+# Pseudo-code-ish loop
+while read gene tx1 tx2; do
+    # Extract CDS for each transcript
+    seqkit grep -p "$tx1" ../hap1_chr7_pairs_cds.fa > ${gene}_hap1.cds.fa
+    seqkit grep -p "$tx2" ../hap2_chr7_pairs_cds.fa > ${gene}_hap2.cds.fa
+
+    cat ${gene}_hap1.cds.fa ${gene}_hap2.cds.fa > ${gene}.cds.fa
+
+    # Translate to protein (e.g. with transeq or Biopython)
+    transeq -sequence ${gene}_hap1.cds.fa -outseq ${gene}_hap1.prot.fa
+    transeq -sequence ${gene}_hap2.cds.fa -outseq ${gene}_hap2.prot.fa
+    cat ${gene}_hap1.prot.fa ${gene}_hap2.prot.fa > ${gene}.prot.fa
+
+    # Align proteins
+    mafft --auto ${gene}.prot.fa > ${gene}.prot.aln.fa
+
+    # Convert to codon alignment (PAL2NAL, PAML format)
+    pal2nal.pl ${gene}.prot.aln.fa ${gene}.cds.fa -output paml > ${gene}.paml
+
+done < <(awk 'NR>1{print $1, $2, $6}' ../chr7_gene_pairs.tsv)
+
+
+Then concatenate all .paml and run Ka/Ks Calculator:
+
+cat *.paml > chr7_all_genes.paml
+KaKs_Calculator -i chr7_all_genes.paml -o chr7_kaks_results.txt -m YN
+
+
+You’ll get Ka, Ks, Ka/Ks per gene across Chr07.
+
+4. Compute dXY using the same alignments
+
+From those .paml codon alignments, you can compute dXY per gene (fraction of differing sites).
+
+Example small Python script:
+
+from Bio import AlignIO
+import glob
+import pandas as pd
+
+records = []
+for aln_file in glob.glob("*.paml"):
+    aln = AlignIO.read(aln_file, "phylip")   # adjust format if needed
+    s1, s2 = str(aln[0].seq), str(aln[1].seq)
+
+    same = diff = 0
+    for a, b in zip(s1, s2):
+        if a in "-N" or b in "-N":
+            continue
+        if a == b:
+            same += 1
+        else:
+            diff += 1
+    dxy = diff / (same + diff) if (same + diff) > 0 else None
+    gene = aln_file.replace(".paml", "")
+    records.append({"gene": gene, "dxy": dxy})
+
+dxy_df = pd.DataFrame(records)
+dxy_df.to_csv("chr7_dxy_per_gene.tsv", sep="\t", index=False)
+
+5. Combine Ka/Ks, dXY and positions → run mcp for strata
+
+Merge:
+
+chr7_kaks_results.txt
+
+chr7_dxy_per_gene.tsv
+
+chr7_gene_pairs.tsv (for positions on Chr07)
+
+into one table, e.g.:
+
+gene_id    pos_Mb   Ka   Ks   Ka_Ks   dXY
+Sapur.007G032500   3.12  ...  ...     ...
+...
+
+
+Then in R:
+
+library(dplyr)
+library(PMCMRplus)
+library(mcp)
+
+dat <- read.table("chr7_kaks_dxy_positions.tsv", header = TRUE, sep = "\t")
+
+# Order by position
+dat <- dat %>% arrange(pos_Mb)
+
+# Remove outlier Ks with Rosner’s test (as in the Amborella paper)
+ros <- rosnerTest(dat$Ks, k = 10)
+out_idx <- ros$all.stats$Obs.Num[ros$all.stats$Outlier]
+dat_clean <- dat[-out_idx, ]
+
+# mcp on Ks
+model_ks <- list(
+  Ks ~ 1,
+        ~ 1
+)
+
+fit_ks <- mcp(model_ks, data = dat_clean,
+              iter = 100000, chains = 3, adapt = 100000)
+
+summary(fit_ks)
+plot(fit_ks)
+
+# Similarly for dXY
+model_dxy <- list(
+  dXY ~ 1,
+         ~ 1
+)
+fit_dxy <- mcp(model_dxy, data = dat_clean,
+               iter = 100000, chains = 3, adapt = 100000)
+
+
+The estimated change point(s) in Ks and dXY along Chr07 define your strata boundaries.
+
+Key takeaways for your situation
+
+It’s fine that your gene names are Sapur-based — that just reflects how the annotation was lifted from S. purpurea.
+
+For Hap1 vs Hap2 on Chr07, you don’t really need OrthoFinder:
+Sapur gene IDs + your GFF already give you gene-level 1:1 orthologues.
+
+The important steps are:
+
+one transcript per gene per haplotype
+
+clean CDS
+
+codon alignment → Ka/Ks + dXY
+
+position-based change point analysis (mcp).
+
+If you’d like, I can next write you one combined Python script that:
+
+Reads hap1/hap2 GFF + Chr07,
+
+Picks one isoform per gene,
+
+Builds chr7_gene_pairs.tsv automatically.
