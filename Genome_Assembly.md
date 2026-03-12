@@ -30,3 +30,88 @@ separately saved in this repository.
 
 nextPolish nextpolish_hap1.cfg
 ```
+Ater the raw genome was polished, I map HiC reads against these genome to get the aligned merge_nodups.txt file. We use juicer for that. For Juicer, download it from aiden lab simply using git clone. The directory structure for juicer should be HiCassembly (main directory) and within that we have sub directory: scripts (scripts to run juicer), restriction_sites (from nanopore assembly with generate_site_positions.py),fastq (paired end hic fastq files), references (your genome polished with nextpolish), splits (fastq split files) and a file chrom.sizes that has contig name and sizes. 
+For retsriction_sites folder, generate file including restrcition enzyme cutting sites on our raw assembled genome. The python script for thst is under [juicer_directory]/misc named generate_size_positions.py. 
+```
+#!/bin/bash
+#SBATCH -J site_position
+#SBATCH -o %x.o%j
+#SBATCH -e %x.e%j
+#SBATCH -p nocona
+#SBATCH -N 1
+#SBATCH -n 32
+
+python ../../juicer/misc/generate_site_positions.py MboI SANI ../references/genome.nextpolish.fasta
+```
+Here, MboI is restrcition enzyme used to digest the genome. For chrom.sizes, I used Nan's code (seqlength.py) which I have uploaded here as well
+python seqlength.py -f polished nanopore assemble fasta > [output file name]. 
+For splits folder, I ran the following submission scripts to generate fastq split files:
+```
+#!/bin/bash
+#SBATCH -J splits
+#SBATCH -o %x.o%j
+#SBATCH -e %x.e%j
+#SBATCH -p nocona
+#SBATCH -N 1
+#SBATCH -n 128
+
+
+split -a 3 -l 90000000 -d --additional-suffix=_R1.fastq ../fastq/HiC_527M_R1.fastq
+split -a 3 -l 90000000 -d --additional-suffix=_R2.fastq ../fastq/HiC_527M_R2.fastq
+```
+Finally, after having all files and folder ready, go inside directory, creata submission script named submit.sh and run the juicer.sh Oops also, make sure to index your genome using "bwa index"
+```
+#!/bin/bash
+#SBATCH -J hap1
+#SBATCH -o %x.o%j
+#SBATCH -e %x.e%j
+#SBATCH -p nocona
+#SBATCH -N 1
+#SBATCH -n 64
+#SBATCH --mem=250G
+
+
+bash juicer.sh -d ../ -z ../references/genome.nextpolish.fasta  -y ../restriction_sites/SANI_MboI.txt -t 64 -p ../chrom.sizes  -a bwa --assembly -S early
+```
+I used -S early, because i kept error earlier and since I only need merged_nodups.txt file for running 3d-dna, it worked perfectly fine for me. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
