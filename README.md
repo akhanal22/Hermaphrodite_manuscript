@@ -3,3 +3,7 @@ This repository contains all the scripts and information used for hermaphrodite 
 ## Tools / Software Used
 
 - [PacBio Hifiasm](https://github.com/chhylp123/hifiasm)
+- [Nextpolish](https://github.com/Nextomics/NextPolish.git)
+- [Juicer](https://github.com/aidenlab/juicer.git)
+- [3d-dna](https://github.com/aidenlab/3d-dna.git)
+  
