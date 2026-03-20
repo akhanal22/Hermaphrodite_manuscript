@@ -6,4 +6,6 @@ This repository contains all the scripts and information used for hermaphrodite 
 - [Nextpolish 1.4.1](https://github.com/Nextomics/NextPolish.git)
 - [Juicer 2.0](https://github.com/aidenlab/juicer.git)
 - [3d-dna 180922](https://github.com/aidenlab/3d-dna.git)
-  
+  need to add more as i move along with project!!!!
+
+  Genome assembly is within subdirectory PAcbio_Assembly
