@@ -200,3 +200,27 @@ I chcked the genes succeeded
 grep -l "Yang & Nielsen" *.yn00 | wc -l (gave me 831 total count)
 For the genes failed: grep -L "Yang & Nielsen" *.yn00 > failed_yn00.txt
 wc -l failed_yn00.txt (47)
+
+Extract, ds/ks value and save all of it in a tsv file
+```
+awk '
+BEGIN{
+OFS="\t"
+print "gene","S","N","t","kappa","omega","dN","dS"
+}
+FILENAME!=file{
+file=FILENAME
+gene=file
+sub(/\.yn00$/,"",gene)
+flag=0
+}
+/Yang & Nielsen \(2000\) method/{
+flag=1
+next
+}
+flag && /^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9.-]+/{
+print gene,$3,$4,$5,$6,$7,$8,$11
+flag=0
+}
+' *.yn00 > gene_yn00_ds.tsv
+```
