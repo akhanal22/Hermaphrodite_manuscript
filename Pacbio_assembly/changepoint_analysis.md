@@ -179,3 +179,24 @@ for f in Path(".").glob("*.paml"):
             o.write(seq + "\n")
 ```
 
+Now lets run yn00 for generating ds value. I create the template for .ctl file and next step would be running this in loop.
+```
+cat > yn00_template.ctl << EOF
+seqfile = INPUT.paml
+outfile = OUTPUT.yn00
+verbose = 0
+icode = 0
+weighting = 0
+commonf3x4 = 0
+```
+```
+for f in *.paml; do
+    gene=${f%.paml}
+    sed "s|INPUT.paml|$f|; s|OUTPUT.yn00|${gene}.yn00|" yn00_template.ctl > ${gene}.yn00.ctl
+    yn00 ${gene}.yn00.ctl
+done
+```
+I chcked the genes succeeded 
+grep -l "Yang & Nielsen" *.yn00 | wc -l (gave me 831 total count)
+For the genes failed: grep -L "Yang & Nielsen" *.yn00 > failed_yn00.txt
+wc -l failed_yn00.txt (47)
