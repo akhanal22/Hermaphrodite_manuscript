@@ -121,122 +121,61 @@ while read gene tx1 tx2; do
 
 done < <(awk 'NR>1{print $1, $2, $6}' ../chr7_gene_pairs.tsv)
 
+Now lets run this python code to get clean file after removing stop codon for getting ds. I used python3 clean_paml.py for running this
 
-Then concatenate all .paml and run Ka/Ks Calculator:
+```
 
-cat *.paml > chr7_all_genes.paml
-KaKs_Calculator -i chr7_all_genes.paml -o chr7_kaks_results.txt -m YN
+python <<'EOF'
+from pathlib import Path
 
+stops = {"TAA", "TAG", "TGA"}
 
-You’ll get Ka, Ks, Ka/Ks per gene across Chr07.
+def read_paml(path):
+    lines = [x.strip() for x in open(path) if x.strip()]
+    ns, aln_len = map(int, lines[0].split()[:2])
 
-4. Compute dXY using the same alignments
+    records = []
+    i = 1
 
-From those .paml codon alignments, you can compute dXY per gene (fraction of differing sites).
+    for r in range(ns):
+        name = lines[i]
+        i += 1
 
-Example small Python script:
+        seq = ""
+        while i < len(lines) and len(seq) < aln_len:
+            seq += lines[i].replace(" ", "").upper()
+            i += 1
 
-from Bio import AlignIO
-import glob
-import pandas as pd
+        records.append((name, seq))
 
-records = []
-for aln_file in glob.glob("*.paml"):
-    aln = AlignIO.read(aln_file, "phylip")   # adjust format if needed
-    s1, s2 = str(aln[0].seq), str(aln[1].seq)
+    return ns, records
 
-    same = diff = 0
-    for a, b in zip(s1, s2):
-        if a in "-N" or b in "-N":
-            continue
-        if a == b:
-            same += 1
-        else:
-            diff += 1
-    dxy = diff / (same + diff) if (same + diff) > 0 else None
-    gene = aln_file.replace(".paml", "")
-    records.append({"gene": gene, "dxy": dxy})
+for f in Path(".").glob("*.paml"):
+    ns, records = read_paml(f)
 
-dxy_df = pd.DataFrame(records)
-dxy_df.to_csv("chr7_dxy_per_gene.tsv", sep="\t", index=False)
+    cleaned = []
+    for name, seq in records:
+        if seq[-3:] in stops:
+            seq = seq[:-3]
+        cleaned.append((name, seq))
 
-5. Combine Ka/Ks, dXY and positions → run mcp for strata
+    lengths = [len(seq) for name, seq in cleaned]
 
-Merge:
+    if len(set(lengths)) != 1:
+        print("BAD_LENGTH", f, lengths)
+        continue
 
-chr7_kaks_results.txt
+    new_len = lengths[0]
 
-chr7_dxy_per_gene.tsv
+    if new_len % 3 != 0:
+        print("BAD_FRAME", f, new_len)
+        continue
 
-chr7_gene_pairs.tsv (for positions on Chr07)
+    out = Path("paml_clean") / f.name
+    with open(out, "w") as o:
+        o.write(f"{ns} {new_len}\n")
+        for name, seq in cleaned:
+            o.write(name + "\n")
+            o.write(seq + "\n")
+```
 
-into one table, e.g.:
-
-gene_id    pos_Mb   Ka   Ks   Ka_Ks   dXY
-Sapur.007G032500   3.12  ...  ...     ...
-...
-
-
-Then in R:
-
-library(dplyr)
-library(PMCMRplus)
-library(mcp)
-
-dat <- read.table("chr7_kaks_dxy_positions.tsv", header = TRUE, sep = "\t")
-
-# Order by position
-dat <- dat %>% arrange(pos_Mb)
-
-# Remove outlier Ks with Rosner’s test (as in the Amborella paper)
-ros <- rosnerTest(dat$Ks, k = 10)
-out_idx <- ros$all.stats$Obs.Num[ros$all.stats$Outlier]
-dat_clean <- dat[-out_idx, ]
-
-# mcp on Ks
-model_ks <- list(
-  Ks ~ 1,
-        ~ 1
-)
-
-fit_ks <- mcp(model_ks, data = dat_clean,
-              iter = 100000, chains = 3, adapt = 100000)
-
-summary(fit_ks)
-plot(fit_ks)
-
-# Similarly for dXY
-model_dxy <- list(
-  dXY ~ 1,
-         ~ 1
-)
-fit_dxy <- mcp(model_dxy, data = dat_clean,
-               iter = 100000, chains = 3, adapt = 100000)
-
-
-The estimated change point(s) in Ks and dXY along Chr07 define your strata boundaries.
-
-Key takeaways for your situation
-
-It’s fine that your gene names are Sapur-based — that just reflects how the annotation was lifted from S. purpurea.
-
-For Hap1 vs Hap2 on Chr07, you don’t really need OrthoFinder:
-Sapur gene IDs + your GFF already give you gene-level 1:1 orthologues.
-
-The important steps are:
-
-one transcript per gene per haplotype
-
-clean CDS
-
-codon alignment → Ka/Ks + dXY
-
-position-based change point analysis (mcp).
-
-If you’d like, I can next write you one combined Python script that:
-
-Reads hap1/hap2 GFF + Chr07,
-
-Picks one isoform per gene,
-
-Builds chr7_gene_pairs.tsv automatically.
