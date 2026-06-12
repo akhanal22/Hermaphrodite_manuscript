@@ -418,5 +418,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
+
 Based on your alignment, you could worked around the juicebox and keep repeating the assembly review step to get the final scaffolded genome.
