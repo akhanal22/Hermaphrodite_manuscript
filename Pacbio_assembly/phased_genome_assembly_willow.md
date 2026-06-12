@@ -60,7 +60,7 @@ For splits folder, I ran the following submission scripts to generate fastq spli
 split -a 3 -l 90000000 -d --additional-suffix=_R1.fastq ../fastq/HiC_527M_R1.fastq
 split -a 3 -l 90000000 -d --additional-suffix=_R2.fastq ../fastq/HiC_527M_R2.fastq
 ```
-Finally, after having all files and folder ready, go inside directory, creata submission script named submit.sh and run the juicer.sh Oops also, make sure to index your genome using "bwa index"
+Finally, after having all files and folder ready, go inside directory, create submission script named submit.sh and run the juicer.sh Oops also, make sure to index your genome using "bwa index"
 03-submit.sh
 ```
 #!/bin/bash
@@ -75,10 +75,11 @@ Finally, after having all files and folder ready, go inside directory, creata su
 
 bash juicer.sh -d ../ -z ../references/genome.nextpolish.fasta  -y ../restriction_sites/SANI_MboI.txt -t 64 -p ../chrom.sizes  -a bwa --assembly -S early
 ```
-I used -S early, because i kept error earlier and since I only need merged_nodups.txt file for running 3d-dna, it worked perfectly fine for me. 
+I used -S early, because i kept getting error earlier and since I only need merged_nodups.txt file for running 3d-dna, it worked perfectly fine for me. 
 
 Now comes 3d-dna where it used the dups.txt file from juicer and polished fasta file to generate scaffold level assembly.
 04-scaffolding.sh
+
 ```
 #!/bin/bash
 #SBATCH -J h2_3ddnar0
@@ -90,9 +91,10 @@ Now comes 3d-dna where it used the dups.txt file from juicer and polished fasta 
 
 bash ../3d-dna/run-asm-pipeline.sh -r 0 ../../HiC_assembly/references/genome.nextpolish.fasta ../../HiC_assembly/aligned/old_merged_nodups.txt
 ```
+
 Now comes the tricky part, after the 3d-dna run, you will get hic and assembly file along with the genome.nextpolish.FINAL.fasta file. You would need use hic and assembly file to manually look over each scaffold in juicebox. After arranging it, run the post assembly review step of 3d-dna.
 05-postreview.sh
-``
+```
 #!/bin/bash
 #SBATCH -J hap2_rev
 #SBATCH -o %x.o%j
@@ -418,5 +420,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
+```
 Based on your alignment, you could worked around the juicebox and keep repeating the assembly review step to get the final scaffolded genome.
