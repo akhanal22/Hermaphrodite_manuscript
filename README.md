@@ -14,3 +14,5 @@ Repeat modeling and masking
 
 Genome annotation
 - [liftoff](https://github.com/agshumate/Liftoff.git)
+- HiSAT
+- Braker
