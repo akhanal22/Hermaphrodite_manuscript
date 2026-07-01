@@ -2,5 +2,5 @@ This folder contains the scripts used for genome annotation.
 
 1. USe liftoff to get homologous annotation based on annotation of Salix purpurea
 2. -[RepeatModeler/2.0.4-foss-2022a](https://github.com/Dfam-consortium/RepeatModeler.git) to create repeat library
-3. 
+3. [RepeatModeler/2.0.4-foss-2022a](https://github.com/Dfam-consortium/RepeatModeler.git)
  
