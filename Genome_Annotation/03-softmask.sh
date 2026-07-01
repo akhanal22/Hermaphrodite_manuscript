@@ -16,6 +16,8 @@ set -euo pipefail
 source ~/ENTER/etc/profile.d/conda.sh
 conda activate repeatmasker_env
 
+#allname.lst is the file that has information about how different hplotypes are named
+
 sample=$(sed -n "${SLURM_ARRAY_TASK_ID}p" allname.lst | tr -d '\r' | xargs)
 
 [[ -n "$sample" ]] || { echo "ERROR: empty sample name"; exit 1; }
