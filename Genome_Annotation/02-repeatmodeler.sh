@@ -13,10 +13,7 @@
 
 set -euo pipefail
 
-# ---- conda ----
-#source ~/ENTER/etc/profile.d/conda.sh
-#conda activate repeatmasker_env
-
+# ---- load the modules
 module load GenomeTools/1.6.5-GCC-12.3.0
 module load LTR_retriever/2.9.0-foss-2022a
 
